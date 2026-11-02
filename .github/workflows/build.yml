@@ -1,0 +1,67 @@
+name: Build Wood Marking APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'WoodMarkingCalculator_Android_Project.zip'
+      - '.github/workflows/build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Extract project
+        run: |
+          mkdir project
+          unzip -q WoodMarkingCalculator_Android_Project.zip -d project
+
+      - name: Fix source formatting
+        run: |
+          python3 - <<'PY'
+          import re
+          p = 'project/app/src/main/java/com/example/woodmarkingcalculator/MainActivity.kt'
+          s = open(p, encoding='utf-8').read()
+          s = re.sub(
+              r'appendLine\("आखिरी निशान: \$\{.*?\} mm"\)',
+              'appendLine("आखिरी निशान: ${fmt(last)} mm")',
+              s,
+              flags=re.S
+          )
+          open(p, 'w', encoding='utf-8').write(s)
+          PY
+
+      - name: Build APK
+        run: |
+          cd project
+          gradle assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WoodMarkingCalculator-APK
+          path: project/app/build/outputs/apk/debug/app-debug.apk
